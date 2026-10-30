@@ -1,0 +1,30 @@
+# Binaries & build outputs
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Go specific
+vendor/
+
+# Local docs (if any)
+docs/
