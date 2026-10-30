@@ -1,6 +1,7 @@
 # Binaries & build outputs
 /bin/
 /dist/
+erp-iot-ingestion
 *.exe
 *.exe~
 *.dll
