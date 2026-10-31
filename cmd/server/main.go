@@ -16,6 +16,9 @@ import (
 	"github.com/fork-devs/erp-iot-ingestion/internal/infrastructure/http/handler"
 	"github.com/fork-devs/erp-iot-ingestion/internal/infrastructure/http/middleware"
 	"github.com/fork-devs/erp-iot-ingestion/internal/infrastructure/kafka"
+	"github.com/fork-devs/erp-iot-ingestion/internal/infrastructure/persistence/memory"
+	"github.com/fork-devs/erp-iot-ingestion/internal/infrastructure/telemetry"
+	"github.com/fork-devs/erp-iot-ingestion/internal/infrastructure/worker"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
@@ -30,8 +33,19 @@ func main() {
 	initLogger(cfg.LogLevel)
 
 	kafkaPublisher := kafka.NewKafkaEventPublisher(cfg)
+	deviceRepo := memory.NewMemoryDeviceRepository()
+
+	deviceService := service.NewDeviceApplicationService(deviceRepo)
+	batchService := service.NewBatchApplicationService(deviceRepo, kafkaPublisher)
 	ingestService := service.NewIngestionService(kafkaPublisher)
 
+	workerPool := worker.NewWorkerPool(16, 5000)
+	workerPool.Start()
+	telemetry.DefaultMetrics.SetQueueDepthProvider(workerPool.QueueDepth)
+
+	deviceHandler := handler.NewDeviceHandler(deviceService)
+	registrationHandler := handler.NewRegistrationHandler(deviceService)
+	batchHandler := handler.NewBatchHandler(batchService, kafkaPublisher, cfg.MaxRequestBodySize)
 	telemetryHandler := handler.NewTelemetryHandler(ingestService, kafkaPublisher, cfg.MaxRequestBodySize)
 	healthHandler := handler.NewHealthHandler(kafkaPublisher)
 	authMiddleware := middleware.NewDeviceAuthenticator(cfg.AllowedDeviceKeys)
@@ -42,9 +56,32 @@ func main() {
 	r.Use(chimiddleware.Recoverer)
 	r.Use(chimiddleware.Timeout(30 * time.Second))
 
-	// Health and readiness endpoints for orchestrators
+	// Health, readiness, and metrics endpoints
 	r.Get("/healthz", healthHandler.Liveness)
 	r.Get("/readyz", healthHandler.Readiness)
+	r.Get("/metrics", telemetry.DefaultMetrics.Handler())
+
+	// Secured OBD2 Devices API
+	r.Route("/api/v1/obd2-devices", func(sub chi.Router) {
+		sub.Use(authMiddleware.Handler)
+		sub.Post("/", deviceHandler.RegisterDevice)
+		sub.Get("/", deviceHandler.ListDevices)
+		sub.Get("/{id}", deviceHandler.GetDevice)
+	})
+
+	// Secured Device Registrations (Vehicle Linking) API
+	r.Route("/api/v1/obd2-device-registrations", func(sub chi.Router) {
+		sub.Use(authMiddleware.Handler)
+		sub.Post("/", registrationHandler.LinkDevice)
+		sub.Patch("/{id}", registrationHandler.UpdateStatus)
+		sub.Get("/", registrationHandler.ListRegistrations)
+	})
+
+	// Secured Batch Telemetry Ingestion API
+	r.Route("/api/v1/telemetry-batches", func(sub chi.Router) {
+		sub.Use(authMiddleware.Handler)
+		sub.Post("/", batchHandler.HandleIngestBatch)
+	})
 
 	// Secured Telemetry Ingestion Routes
 	r.Route("/api/v1/iot", func(sub chi.Router) {
@@ -78,13 +115,17 @@ func main() {
 	}()
 
 	<-stop
-	slog.Info("shutdown signal received, draining active connections and kafka buffers...")
+	slog.Info("shutdown signal received, draining active connections, worker pool and kafka buffers...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
 		slog.Error("server graceful shutdown error", "error", err)
+	}
+
+	if err := workerPool.Stop(5 * time.Second); err != nil {
+		slog.Error("worker pool shutdown error", "error", err)
 	}
 
 	if err := kafkaPublisher.Close(); err != nil {
