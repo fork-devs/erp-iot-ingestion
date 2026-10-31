@@ -18,12 +18,6 @@ type IngestTelemetryCommand struct {
 	Metadata  map[string]string
 }
 
-// IngestBatchCommand carries a collection of telemetry readings reported in batch by a vehicle.
-type IngestBatchCommand struct {
-	TenantID string
-	Readings []IngestTelemetryCommand
-}
-
 // IngestionUseCase specifies application operations for ingesting vehicle telemetry.
 type IngestionUseCase interface {
 	// Ingest validates and asynchronously buffers a single vehicle reading.
@@ -31,4 +25,51 @@ type IngestionUseCase interface {
 
 	// IngestBatch validates and enqueues a batch of accumulated readings.
 	IngestBatch(ctx context.Context, cmd IngestBatchCommand) ([]*model.TelemetryPacket, error)
+}
+
+// IngestBatchCommand carries a collection of telemetry readings reported in batch by a vehicle.
+type IngestBatchCommand struct {
+	TenantID string
+	Readings []IngestTelemetryCommand
+}
+
+// RegisterDeviceCommand carries input data for registering a new physical OBD2 dongle.
+type RegisterDeviceCommand struct {
+	TenantID   string
+	BranchID   string
+	MACAddress string
+}
+
+// DeviceUseCase specifies operations for physical OBD2 hardware devices.
+type DeviceUseCase interface {
+	RegisterDevice(ctx context.Context, cmd RegisterDeviceCommand) (*model.OBDDevice, error)
+	GetDevice(ctx context.Context, tenantID, deviceID string) (*model.OBDDevice, error)
+	ListDevices(ctx context.Context, tenantID, branchID string, status model.DeviceStatus) ([]*model.OBDDevice, error)
+}
+
+// LinkDeviceCommand carries data for binding an OBD2 device to a vehicle.
+type LinkDeviceCommand struct {
+	TenantID     string
+	BranchID     string
+	OBD2DeviceID string
+	VehicleID    string
+}
+
+// UpdateRegistrationStatusCommand carries data for unlinking or updating registration status.
+type UpdateRegistrationStatusCommand struct {
+	TenantID       string
+	RegistrationID string
+	Status         model.RegistrationStatus
+}
+
+// RegistrationUseCase specifies operations for managing device-to-vehicle bindings.
+type RegistrationUseCase interface {
+	LinkDevice(ctx context.Context, cmd LinkDeviceCommand) (*model.DeviceRegistration, error)
+	UpdateRegistrationStatus(ctx context.Context, cmd UpdateRegistrationStatusCommand) (*model.DeviceRegistration, error)
+	ListRegistrations(ctx context.Context, tenantID, branchID string, status model.RegistrationStatus) ([]*model.DeviceRegistration, error)
+}
+
+// BatchIngestUseCase specifies operations for ingesting periodic batches of telemetry snapshots.
+type BatchIngestUseCase interface {
+	IngestBatch(ctx context.Context, batch model.TelemetryBatch) error
 }

@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
 type contextKey string
 
 const (
-	tenantKey contextKey = "tenant_id"
-	deviceKey contextKey = "device_id"
+	tenantKey      contextKey = "tenant_id"
+	deviceKey      contextKey = "device_id"
+	correlationKey contextKey = "correlation_id"
 )
 
 // DeviceAuthenticator verifies request authentication via X-Device-Key or Authorization Bearer header.
@@ -29,6 +32,21 @@ func NewDeviceAuthenticator(allowedKeys map[string]string) *DeviceAuthenticator 
 // Handler returns an HTTP middleware verifying device authenticity and binding tenant_id into context.
 func (a *DeviceAuthenticator) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		// Extract correlation ID from header or Chi request ID
+		correlationID := r.Header.Get("X-Correlation-ID")
+		if correlationID == "" {
+			correlationID = r.Header.Get("X-Request-ID")
+		}
+		if correlationID == "" {
+			correlationID = chimiddleware.GetReqID(ctx)
+		}
+		if correlationID != "" {
+			ctx = context.WithValue(ctx, correlationKey, correlationID)
+			w.Header().Set("X-Correlation-ID", correlationID)
+		}
+
 		apiKey := r.Header.Get("X-Device-Key")
 		if apiKey != "" {
 			tenantID, ok := a.allowedKeys[apiKey]
@@ -36,7 +54,7 @@ func (a *DeviceAuthenticator) Handler(next http.Handler) http.Handler {
 				writeUnauthorized(w, "Invalid X-Device-Key")
 				return
 			}
-			ctx := context.WithValue(r.Context(), tenantKey, tenantID)
+			ctx = context.WithValue(ctx, tenantKey, tenantID)
 			ctx = context.WithValue(ctx, deviceKey, apiKey)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
@@ -56,7 +74,7 @@ func (a *DeviceAuthenticator) Handler(next http.Handler) http.Handler {
 				// Fallback for gateway authenticated traffic
 				tenantID = "00000000-0000-0000-0000-000000000001"
 			}
-			ctx := context.WithValue(r.Context(), tenantKey, tenantID)
+			ctx = context.WithValue(ctx, tenantKey, tenantID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
@@ -75,6 +93,15 @@ func TenantFromContext(ctx context.Context) (string, bool) {
 func DeviceFromContext(ctx context.Context) (string, bool) {
 	val, ok := ctx.Value(deviceKey).(string)
 	return val, ok && val != ""
+}
+
+// CorrelationFromContext extracts the correlation_id from request context.
+func CorrelationFromContext(ctx context.Context) string {
+	val, ok := ctx.Value(correlationKey).(string)
+	if ok {
+		return val
+	}
+	return ""
 }
 
 func writeUnauthorized(w http.ResponseWriter, detail string) {
