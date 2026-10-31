@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/fork-devs/erp-iot-ingestion/internal/application/usecase"
 	"github.com/fork-devs/erp-iot-ingestion/internal/domain"
@@ -43,6 +44,41 @@ func (s *DeviceApplicationService) RegisterDevice(ctx context.Context, cmd useca
 // GetDevice retrieves an OBD2 device by its identifier within the tenant.
 func (s *DeviceApplicationService) GetDevice(ctx context.Context, tenantID, deviceID string) (*model.OBDDevice, error) {
 	return s.repo.FindDeviceByID(ctx, tenantID, deviceID)
+}
+
+// UpdateDevice updates hardware metadata such as the MAC address of an OBD2 device.
+func (s *DeviceApplicationService) UpdateDevice(ctx context.Context, cmd usecase.UpdateDeviceCommand) (*model.OBDDevice, error) {
+	device, err := s.repo.FindDeviceByID(ctx, cmd.TenantID, cmd.DeviceID)
+	if err != nil {
+		return nil, domain.ErrDeviceNotFound
+	}
+
+	if err := model.ValidateMAC(cmd.MACAddress); err != nil {
+		return nil, domain.ErrInvalidMACAddress
+	}
+
+	device.MACAddress = strings.ToUpper(strings.TrimSpace(cmd.MACAddress))
+	if err := s.repo.SaveDevice(ctx, device); err != nil {
+		return nil, err
+	}
+	return device, nil
+}
+
+// DeleteDevice performs a soft delete by marking an available device as DELETED.
+func (s *DeviceApplicationService) DeleteDevice(ctx context.Context, tenantID, deviceID string) error {
+	device, err := s.repo.FindDeviceByID(ctx, tenantID, deviceID)
+	if err != nil {
+		return domain.ErrDeviceNotFound
+	}
+
+	// Verify device does not have an active registration
+	activeReg, err := s.repo.FindActiveRegistrationByDevice(ctx, tenantID, deviceID)
+	if err == nil && activeReg != nil {
+		return domain.ErrDeviceAlreadyLinked
+	}
+
+	device.Status = "DELETED"
+	return s.repo.SaveDevice(ctx, device)
 }
 
 // ListDevices returns devices matching the tenant, branch, and optional status filter.

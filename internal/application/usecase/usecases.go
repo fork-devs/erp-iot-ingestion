@@ -40,9 +40,18 @@ type RegisterDeviceCommand struct {
 	MACAddress string
 }
 
+// UpdateDeviceCommand carries input data for updating an existing physical OBD2 dongle.
+type UpdateDeviceCommand struct {
+	TenantID   string
+	DeviceID   string
+	MACAddress string
+}
+
 // DeviceUseCase specifies operations for physical OBD2 hardware devices.
 type DeviceUseCase interface {
 	RegisterDevice(ctx context.Context, cmd RegisterDeviceCommand) (*model.OBDDevice, error)
+	UpdateDevice(ctx context.Context, cmd UpdateDeviceCommand) (*model.OBDDevice, error)
+	DeleteDevice(ctx context.Context, tenantID, deviceID string) error
 	GetDevice(ctx context.Context, tenantID, deviceID string) (*model.OBDDevice, error)
 	ListDevices(ctx context.Context, tenantID, branchID string, status model.DeviceStatus) ([]*model.OBDDevice, error)
 }

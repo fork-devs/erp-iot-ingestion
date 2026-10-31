@@ -67,6 +67,8 @@ func main() {
 		sub.Post("/", deviceHandler.RegisterDevice)
 		sub.Get("/", deviceHandler.ListDevices)
 		sub.Get("/{id}", deviceHandler.GetDevice)
+		sub.Put("/{id}", deviceHandler.UpdateDevice)
+		sub.Delete("/{id}", deviceHandler.DeleteDevice)
 	})
 
 	// Secured Device Registrations (Vehicle Linking) API
