@@ -1,0 +1,13 @@
+**/.git
+**/.gitignore
+**/.env*
+**/*.pem
+**/*.key
+**/*.md
+bin/
+*.exe
+*.test
+*.out
+.idea/
+.vscode/
+*.log
