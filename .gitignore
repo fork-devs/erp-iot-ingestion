@@ -29,3 +29,7 @@ vendor/
 
 # Local docs (if any)
 docs/
+
+# Local tooling & specifications
+openspec/
+.opencode/
