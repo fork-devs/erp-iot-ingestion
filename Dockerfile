@@ -1,4 +1,4 @@
-# Stage 1: Build
+# Stage 1: Build binary package
 FROM golang:1.24-alpine AS build
 
 WORKDIR /app
@@ -13,7 +13,7 @@ COPY internal/ ./internal/
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /bin/server ./cmd/server/main.go
 
-# Stage 2: Runtime image (<20MB)
+# Stage 2: Minimal runtime image
 FROM alpine:3.20
 
 WORKDIR /app
