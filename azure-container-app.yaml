@@ -1,0 +1,54 @@
+# =============================================================================
+# MANIFIESTO AZURE CONTAINER APPS (ACA) — ERP IOT INGESTION
+# =============================================================================
+
+apiVersion: 2024-03-01
+location: eastus2
+name: erp-iot-ingestion
+type: Microsoft.App/containerApps
+properties:
+  managedEnvironmentId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/managedEnvironments/${ACA_ENVIRONMENT_NAME}
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: false
+      targetPort: 8089
+      transport: auto
+      allowInsecure: false
+  template:
+    containers:
+      - name: erp-iot-ingestion
+        image: ${ACR_NAME}.azurecr.io/erp-iot-ingestion:latest
+        resources:
+          cpu: 0.25
+          memory: 0.5Gi
+        env:
+          - name: SERVER_PORT
+            value: "8089"
+          - name: ENVIRONMENT
+            value: "prod"
+          - name: KAFKA_BROKERS
+            value: "erp-kafka-service:9092"
+          - name: KAFKA_TOPIC
+            value: "telemetry.raw"
+        probes:
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 8089
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          - type: Readiness
+            httpGet:
+              path: /health
+              port: 8089
+            initialDelaySeconds: 5
+            periodSeconds: 10
+    scale:
+      minReplicas: 1
+      maxReplicas: 5
+      rules:
+        - name: http-scaling-rule
+          http:
+            metadata:
+              concurrentRequests: "200"
