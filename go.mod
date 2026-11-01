@@ -1,6 +1,6 @@
 module github.com/fork-devs/erp-iot-ingestion
 
-go 1.27
+go 1.24
 
 require (
 	github.com/go-chi/chi/v5 v5.5.0
