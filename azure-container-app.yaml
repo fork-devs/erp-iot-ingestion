@@ -31,6 +31,8 @@ properties:
             value: "erp-kafka-service:9092"
           - name: KAFKA_TOPIC
             value: "telemetry.raw"
+          - name: JWKS_URL
+            value: "http://erp-auth-service:8081/.well-known/jwks.json"
         probes:
           - type: Liveness
             httpGet:
