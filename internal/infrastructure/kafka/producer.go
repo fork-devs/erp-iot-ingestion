@@ -88,6 +88,9 @@ func (p *KafkaEventPublisher) PublishTelemetry(ctx context.Context, packet *mode
 	if corrID := middleware.CorrelationFromContext(ctx); corrID != "" {
 		headers = append(headers, kafka.Header{Key: "correlation_id", Value: []byte(corrID)})
 	}
+	if tenantID, ok := middleware.TenantFromContext(ctx); ok {
+		headers = append(headers, kafka.Header{Key: "tenant_id", Value: []byte(tenantID)})
+	}
 
 	msg := kafka.Message{
 		Key:     []byte(packet.VehicleID),
@@ -152,6 +155,9 @@ func (p *KafkaEventPublisher) PublishDLQ(ctx context.Context, rawPayload []byte,
 	}
 	if corrID := middleware.CorrelationFromContext(ctx); corrID != "" {
 		headers = append(headers, kafka.Header{Key: "correlation_id", Value: []byte(corrID)})
+	}
+	if tenantID, ok := middleware.TenantFromContext(ctx); ok {
+		headers = append(headers, kafka.Header{Key: "tenant_id", Value: []byte(tenantID)})
 	}
 
 	msg := kafka.Message{
