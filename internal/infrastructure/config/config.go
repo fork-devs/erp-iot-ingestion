@@ -22,6 +22,7 @@ type Config struct {
 	MaxRequestBodySize  int64
 	ShutdownTimeout     time.Duration
 	AllowedDeviceKeys   map[string]string // deviceKey -> tenantId
+	JWKSURL             string
 }
 
 // Load loads configuration from environment variables with sensible defaults for local development.
@@ -81,6 +82,7 @@ func Load() (*Config, error) {
 		MaxRequestBodySize:  maxBodySize,
 		ShutdownTimeout:     time.Duration(shutdownTimeoutSec) * time.Second,
 		AllowedDeviceKeys:   deviceKeys,
+		JWKSURL:             getEnv("JWKS_URL", "http://erp-auth-service:8081/.well-known/jwks.json"),
 	}, nil
 }
 

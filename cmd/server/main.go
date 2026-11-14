@@ -48,7 +48,7 @@ func main() {
 	batchHandler := handler.NewBatchHandler(batchService, kafkaPublisher, cfg.MaxRequestBodySize)
 	telemetryHandler := handler.NewTelemetryHandler(ingestService, kafkaPublisher, cfg.MaxRequestBodySize)
 	healthHandler := handler.NewHealthHandler(kafkaPublisher)
-	authMiddleware := middleware.NewDeviceAuthenticator(cfg.AllowedDeviceKeys)
+	authMiddleware := middleware.NewDeviceAuthenticator(cfg.AllowedDeviceKeys, middleware.WithJWKSURL(cfg.JWKSURL))
 
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
